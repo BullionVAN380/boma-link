@@ -1,7 +1,7 @@
-import NextAuth, { AuthOptions } from 'next-auth';
+import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import { getUserModel } from '@/models/User';
+import { getUserModel } from '@/models/user';
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -63,6 +63,7 @@ export const authOptions: AuthOptions = {
   }
 };
 
-const handler = NextAuth(authOptions);
+export const runtime = 'nodejs';
 
+const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };

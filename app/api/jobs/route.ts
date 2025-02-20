@@ -1,14 +1,17 @@
+export const runtime = 'nodejs'; // Set runtime to nodejs
+
 import { NextResponse } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { getJobModel } from '@/models/job';
 import { getServerSession } from 'next-auth';
-import connectDB from '@/lib/mongodb';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import JobModel from '@/models/job';
 import { serializeDocuments, serializeDocument } from '@/lib/utils';
 
 // GET /api/jobs - Get all jobs or filter by query params
 export async function GET(request: Request) {
   try {
-    await connectDB();
+    await connectToDatabase();
+    const Job = await getJobModel();
     const { searchParams } = new URL(request.url);
     
     // Build filter object based on query parameters
@@ -23,7 +26,7 @@ export async function GET(request: Request) {
       filters.experienceLevel = searchParams.get('experienceLevel');
     }
     
-    const jobs = await JobModel.find(filters)
+    const jobs = await Job.find(filters)
       .populate('employer', 'name email')
       .sort({ createdAt: -1 });
       
@@ -47,10 +50,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Only administrators can create job listings' }, { status: 403 });
     }
 
-    await connectDB();
+    const Job = await getJobModel();
     const data = await request.json();
     
-    const job = await JobModel.create({
+    const job = await Job.create({
       ...data,
       employer: session.user.id,
       status: 'active'
@@ -76,11 +79,11 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Only administrators can update job listings' }, { status: 403 });
     }
 
-    await connectDB();
+    const Job = await getJobModel();
     const data = await request.json();
     const { id, ...updateData } = data;
     
-    const job = await JobModel.findByIdAndUpdate(
+    const job = await Job.findByIdAndUpdate(
       id,
       updateData,
       { new: true }
@@ -116,9 +119,9 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
     }
 
-    await connectDB();
+    const Job = await getJobModel();
     
-    const job = await JobModel.findByIdAndDelete(id);
+    const job = await Job.findByIdAndDelete(id);
     
     if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });

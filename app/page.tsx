@@ -11,71 +11,45 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <section className="w-full max-w-7xl">
-          <div className="mb-8 text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl">
-              Find Your Dream Home
+    <div className="min-h-screen">
+      {/* Hero Section with Background */}
+      <div className="hero-background min-h-[70vh] relative flex items-center justify-center">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-black/70"></div>
+        
+        <main className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
+          <div className="space-y-8">
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl md:text-6xl">
+              <span className="block">Find Your Perfect</span>
+              <span className="gradient-text">Affordable Home</span>
             </h1>
-            <p className="mt-6 text-lg leading-8 text-gray-600">
-              Discover affordable housing options and real estate opportunities in your area
+            <p className="mx-auto max-w-lg text-xl text-gray-200 leading-relaxed sm:max-w-xl">
+              Discover carefully curated affordable housing options and real estate opportunities tailored to your needs and preferences.
             </p>
+            
+            {/* Search Section */}
+            <div className="mt-12 glass-effect rounded-xl p-8 mx-auto max-w-3xl">
+              <h2 className="text-xl font-semibold text-white mb-6">Find Your Dream Property</h2>
+              <SearchFilters />
+            </div>
           </div>
+        </main>
+      </div>
 
-          <SearchFilters />
-          
-          <div className="mt-8">
-            <PropertyList />
+      {/* Property Listings Section */}
+      <div className="bg-gradient-to-b from-gray-900 to-gray-800 py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl font-bold text-white mb-12 text-center">Available Properties</h2>
+          <PropertyList />
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white py-6">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center text-gray-400">
+            <p>&copy; {new Date().getFullYear()} Boma-Link. All rights reserved.</p>
           </div>
-        </section>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+        </div>
       </footer>
     </div>
   );

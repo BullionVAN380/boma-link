@@ -1,27 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import connectDB from '@/lib/mongodb';
-import mongoose from 'mongoose';
+import { connectToDatabase } from '@/lib/db';
+import { getApplicationModel } from '@/models/application';
 
-// Define Application Schema
-const applicationSchema = new mongoose.Schema({
-  jobId: { type: String, required: true },
-  userId: { type: String, required: true },
-  status: { type: String, default: 'pending' },
-  resume: {
-    name: String,
-    url: String,
-  },
-  coverLetter: {
-    name: String,
-    url: String,
-  },
-  createdAt: { type: Date, default: Date.now },
-});
-
-// Get or create the model
-const Application = mongoose.models.Application || mongoose.model('Application', applicationSchema);
+export const runtime = 'nodejs'; // Set runtime to nodejs
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,7 +30,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Connect to database
-    await connectDB();
+    await connectToDatabase();
+
+    const Application = await getApplicationModel();
 
     const application = new Application({
       jobId,

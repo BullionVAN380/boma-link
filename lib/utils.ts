@@ -1,3 +1,5 @@
+import { Types } from 'mongoose';
+
 export function formatPrice(price: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -7,24 +9,59 @@ export function formatPrice(price: number): string {
   }).format(price);
 }
 
-export function serializeDocument<T>(doc: any): T {
-  const serialized = JSON.parse(JSON.stringify(doc));
-  
-  // Convert MongoDB ObjectId to string
-  if (serialized._id && typeof serialized._id === 'object') {
-    serialized._id = serialized._id.toString();
+function isObjectId(value: any): value is Types.ObjectId {
+  return value instanceof Types.ObjectId;
+}
+
+function serializeValue(value: any): any {
+  if (value === null || value === undefined) {
+    return value;
   }
-  
-  // Handle nested objects with ObjectIds (like references)
-  Object.keys(serialized).forEach(key => {
-    if (serialized[key] && typeof serialized[key] === 'object') {
-      if (serialized[key]._id && typeof serialized[key]._id === 'object') {
-        serialized[key]._id = serialized[key]._id.toString();
+
+  // Handle ObjectId
+  if (isObjectId(value)) {
+    return value.toString();
+  }
+
+  // Handle Date
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  // Handle Buffer/Uint8Array
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array) {
+    return value.toString('hex');
+  }
+
+  // Handle arrays
+  if (Array.isArray(value)) {
+    return value.map(item => serializeValue(item));
+  }
+
+  // Handle plain objects
+  if (typeof value === 'object') {
+    const serialized: any = {};
+    for (const [key, val] of Object.entries(value)) {
+      // Skip internal Mongoose properties
+      if (key.startsWith('_') && key !== '_id') {
+        continue;
       }
+      serialized[key] = serializeValue(val);
     }
-  });
-  
-  return serialized;
+    return serialized;
+  }
+
+  return value;
+}
+
+export function serializeDocument<T>(doc: any): T {
+  if (!doc) {
+    return doc;
+  }
+
+  // If the document has a toObject method (Mongoose document), use it
+  const obj = doc.toObject ? doc.toObject() : doc;
+  return serializeValue(obj);
 }
 
 export function serializeDocuments<T>(docs: any[]): T[] {

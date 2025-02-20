@@ -1,24 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import connectDB from '@/lib/mongodb';
-import mongoose from 'mongoose';
-
-// Get the Application model
-const Application = mongoose.models.Application || mongoose.model('Application', new mongoose.Schema({
-  jobId: String,
-  userId: String,
-  status: String,
-  resume: {
-    name: String,
-    url: String,
-  },
-  coverLetter: {
-    name: String,
-    url: String,
-  },
-  createdAt: { type: Date, default: Date.now },
-}));
+import { connectToDatabase } from '@/lib/db';
+import { getApplicationModel } from '@/models/application';
+import { getJobModel } from '@/models/job';
+import { getUserModel } from '@/models/user';
+import { serializeDocuments } from '@/lib/utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,91 +18,44 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    await connectDB();
+    await connectToDatabase();
+    const Application = await getApplicationModel();
+    const Job = await getJobModel();
+    const User = await getUserModel();
 
-    // Aggregate to get job and applicant details
-    const applications = await Application.aggregate([
-      {
-        $lookup: {
-          from: 'jobs',
-          let: { jobId: { $toObjectId: '$jobId' } },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ['$_id', '$$jobId'] }
-              }
-            },
-            {
-              $project: {
-                title: 1,
-                company: 1
-              }
-            }
-          ],
-          as: 'jobDetails'
-        }
+    // Get all applications with populated job and user details
+    const applications = await Application.find()
+      .populate({
+        path: 'jobId',
+        model: Job,
+        select: 'title company'
+      })
+      .populate({
+        path: 'userId',
+        model: User,
+        select: 'name email'
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Transform the data to match frontend expectations
+    const transformedApplications = applications.map(app => ({
+      _id: app._id.toString(),
+      status: app.status,
+      resume: app.resume,
+      coverLetter: app.coverLetter,
+      createdAt: app.createdAt,
+      job: {
+        title: app.jobId?.title || 'Unknown Job',
+        company: app.jobId?.company || 'Unknown Company'
       },
-      {
-        $lookup: {
-          from: 'users',
-          let: { userId: { $toObjectId: '$userId' } },
-          pipeline: [
-            {
-              $match: {
-                $expr: { $eq: ['$_id', '$$userId'] }
-              }
-            },
-            {
-              $project: {
-                name: 1,
-                email: 1
-              }
-            }
-          ],
-          as: 'applicantDetails'
-        }
-      },
-      {
-        $addFields: {
-          job: {
-            $cond: {
-              if: { $gt: [{ $size: '$jobDetails' }, 0] },
-              then: {
-                title: { $arrayElemAt: ['$jobDetails.title', 0] },
-                company: { $arrayElemAt: ['$jobDetails.company', 0] }
-              },
-              else: null
-            }
-          },
-          applicant: {
-            $cond: {
-              if: { $gt: [{ $size: '$applicantDetails' }, 0] },
-              then: {
-                name: { $arrayElemAt: ['$applicantDetails.name', 0] },
-                email: { $arrayElemAt: ['$applicantDetails.email', 0] }
-              },
-              else: null
-            }
-          }
-        }
-      },
-      {
-        $project: {
-          _id: 1,
-          status: 1,
-          resume: 1,
-          coverLetter: 1,
-          createdAt: 1,
-          job: 1,
-          applicant: 1
-        }
-      },
-      {
-        $sort: { createdAt: -1 }
+      applicant: {
+        name: app.userId?.name || 'Unknown User',
+        email: app.userId?.email || 'No email'
       }
-    ]);
+    }));
 
-    return NextResponse.json(applications);
+    return NextResponse.json(transformedApplications);
   } catch (error) {
     console.error('Error fetching applications:', error);
     return NextResponse.json(

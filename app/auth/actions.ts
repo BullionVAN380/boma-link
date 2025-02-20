@@ -1,7 +1,7 @@
 'use server';
 
 import { connectToDatabase } from '@/lib/db';
-import { getUserModel } from '@/models/User';
+import { getUserModel } from '@/models/user';
 import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';

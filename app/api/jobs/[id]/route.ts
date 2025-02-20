@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
-import JobModel from '@/models/job';
+import { connectToDatabase } from '@/lib/db';
+import { getJobModel } from '@/models/job';
 import { serializeDocument } from '@/lib/utils';
+
+export const runtime = 'nodejs'; // Set runtime to nodejs
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    await connectDB();
-    
-    const job = await JobModel.findById(params.id)
-      .populate('employer', 'name email');
+    const { id } = params;
+    await connectToDatabase();
+    const Job = await getJobModel();
+
+    const job = await Job.findById(id).populate('employer', 'name email');
     
     if (!job) {
       return NextResponse.json(
@@ -19,12 +22,12 @@ export async function GET(
         { status: 404 }
       );
     }
-    
+
     return NextResponse.json(serializeDocument(job));
   } catch (error) {
     console.error('Failed to fetch job:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch job details' },
+      { error: 'Failed to fetch job' },
       { status: 500 }
     );
   }

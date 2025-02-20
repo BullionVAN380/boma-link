@@ -28,6 +28,8 @@ const userSchema = new mongoose.Schema({
     company: String,
     website: String
   },
+  resetToken: String,
+  resetTokenExpiry: Date,
   createdAt: {
     type: Date,
     default: Date.now
@@ -46,6 +48,8 @@ interface IUser {
     company?: string;
     website?: string;
   };
+  resetToken?: string;
+  resetTokenExpiry?: Date;
   createdAt: Date;
 }
 

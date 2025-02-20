@@ -49,7 +49,7 @@ export default function SignUpForm() {
             name="name"
             type="text"
             label="Full name"
-            placeholder="John Doe"
+            placeholder="Josphat Baraka"
             autoComplete="name"
             Icon={FiUser}
           />
@@ -59,7 +59,7 @@ export default function SignUpForm() {
             name="email"
             type="email"
             label="Email address"
-            placeholder="you@example.com"
+            placeholder="barakajos@gmail.com"
             autoComplete="email"
             Icon={FiMail}
           />

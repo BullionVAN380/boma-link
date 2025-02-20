@@ -6,6 +6,7 @@ import { signIn } from 'next-auth/react';
 import { FiMail, FiLock } from 'react-icons/fi';
 import FormInput from '@/components/ui/FormInput';
 import AuthForm from '@/components/ui/AuthForm';
+import Link from 'next/link';
 
 export default function SignInForm() {
   const router = useRouter();
@@ -118,19 +119,24 @@ export default function SignInForm() {
           </div>
 
           <div className="text-sm">
-            <a href="#" className="font-medium text-indigo-600 hover:text-indigo-500">
+            <Link
+              href="/auth/forgot-password"
+              className="font-medium text-indigo-600 hover:text-indigo-500"
+            >
               Forgot your password?
-            </a>
+            </Link>
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 transition-colors duration-200"
-        >
-          {loading ? 'Signing in...' : 'Sign in'}
-        </button>
+        <div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+        </div>
       </form>
     </AuthForm>
   );

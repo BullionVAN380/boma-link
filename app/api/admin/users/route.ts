@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/authOptions';
 import { connectToDatabase } from '@/lib/db';
-import { getUserModel } from '@/models/User';
+import { getUserModel } from '@/models/user';
 
 export async function GET(request: Request) {
   try {

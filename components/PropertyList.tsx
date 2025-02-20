@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useFilters } from '@/context/FilterContext';
 
 interface Property {
   _id: string;
@@ -28,11 +29,21 @@ interface Property {
 export default function PropertyList() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
+  const { filters } = useFilters();
 
   useEffect(() => {
     const fetchProperties = async () => {
       try {
-        const response = await fetch('/api/properties');
+        setLoading(true);
+        // Convert filters to URLSearchParams
+        const params = new URLSearchParams();
+        if (filters.type !== 'all') params.append('type', filters.type);
+        if (filters.priceMin) params.append('priceMin', filters.priceMin);
+        if (filters.priceMax) params.append('priceMax', filters.priceMax);
+        if (filters.location) params.append('location', filters.location);
+        if (filters.propertyType !== 'all') params.append('propertyType', filters.propertyType);
+
+        const response = await fetch(`/api/properties?${params.toString()}`);
         const data = await response.json();
         setProperties(data);
       } catch (error) {
@@ -43,7 +54,7 @@ export default function PropertyList() {
     };
 
     fetchProperties();
-  }, []);
+  }, [filters]);
 
   if (loading) {
     return (

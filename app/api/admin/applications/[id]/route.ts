@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import connectDB from '@/lib/mongodb';
-import mongoose from 'mongoose';
-
-const Application = mongoose.models.Application;
+import { connectToDatabase } from '@/lib/db';
+import { getApplicationModel } from '@/models/application';
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    await connectToDatabase();
+    const Application = await getApplicationModel();
+
     const session = await getServerSession(authOptions);
     
     if (!session?.user || session.user.role !== 'admin') {
@@ -30,8 +31,6 @@ export async function PATCH(
         { status: 400 }
       );
     }
-
-    await connectDB();
 
     const application = await Application.findByIdAndUpdate(
       id,

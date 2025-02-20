@@ -4,6 +4,7 @@ import { useState } from 'react';
 import AdminPropertyList from './AdminPropertyList';
 import AdminUserList from './AdminUserList';
 import AdminApplicationList from './AdminApplicationList';
+import AdminContactList from './AdminContactList';
 
 export default function AdminDashboardTabs() {
   const [activeTab, setActiveTab] = useState('properties');
@@ -33,6 +34,16 @@ export default function AdminDashboardTabs() {
             Job Applications
           </button>
           <button
+            onClick={() => setActiveTab('contacts')}
+            className={`${
+              activeTab === 'contacts'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm relative`}
+          >
+            Contact Requests
+          </button>
+          <button
             onClick={() => setActiveTab('users')}
             className={`${
               activeTab === 'users'
@@ -50,6 +61,8 @@ export default function AdminDashboardTabs() {
           <AdminPropertyList />
         ) : activeTab === 'applications' ? (
           <AdminApplicationList />
+        ) : activeTab === 'contacts' ? (
+          <AdminContactList />
         ) : (
           <AdminUserList />
         )}

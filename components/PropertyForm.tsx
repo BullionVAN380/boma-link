@@ -7,14 +7,50 @@ import ImageUpload from './ImageUpload';
 import Image from 'next/image';
 
 interface PropertyFormProps {
-  initialData?: any;
+  initialData?: Partial<PropertyFormData>;
+}
+
+interface PropertyImage {
+  url: string;
+  isFeatured: boolean;
+}
+
+interface PropertyLocation {
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  zipCode: string;
+}
+
+interface PropertyFeatures {
+  bedrooms: number;
+  bathrooms: number;
+  area: number;
+  parking: boolean;
+  furnished: boolean;
+  airConditioning: boolean;
+  heating: boolean;
+}
+
+interface PropertyFormData {
+  _id?: string;
+  title: string;
+  description: string;
+  price: string;
+  type: 'sale' | 'rent';
+  propertyType: 'apartment' | 'house' | 'condo' | 'land';
+  location: PropertyLocation;
+  features: PropertyFeatures;
+  images: PropertyImage[];
 }
 
 export default function PropertyForm({ initialData }: PropertyFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PropertyFormData>({
+    _id: initialData?._id,
     title: initialData?.title || '',
     description: initialData?.description || '',
     price: initialData?.price || '',
@@ -43,50 +79,69 @@ export default function PropertyForm({ initialData }: PropertyFormProps) {
     const { name, value } = e.target;
     if (name.includes('.')) {
       const [section, field] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [section]: {
-          ...prev[section as keyof typeof prev],
-          [field]: value
+      setFormData((prev: PropertyFormData) => {
+        if (section === 'location') {
+          return {
+            ...prev,
+            location: {
+              ...prev.location,
+              [field]: value
+            }
+          };
         }
-      }));
+        if (section === 'features') {
+          return {
+            ...prev,
+            features: {
+              ...prev.features,
+              [field]: value
+            }
+          };
+        }
+        return prev;
+      });
     } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+      setFormData((prev: PropertyFormData) => ({ ...prev, [name]: value }));
     }
   };
 
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, checked } = e.target;
     const [section, field] = name.split('.');
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section as keyof typeof prev],
-        [field]: checked
+    setFormData((prev: PropertyFormData) => {
+      if (section === 'features') {
+        return {
+          ...prev,
+          features: {
+            ...prev.features,
+            [field]: checked
+          }
+        };
       }
-    }));
+      return prev;
+    });
   };
 
   const handleImageUpload = (imageData: { url: string }) => {
-    setFormData(prev => ({
+    setFormData((prev: PropertyFormData) => ({
       ...prev,
-      images: [...prev.images, { ...imageData, isFeatured: prev.images.length === 0 }]
+      images: [...prev.images, { url: imageData.url, isFeatured: prev.images.length === 0 }]
     }));
   };
 
   const removeImage = (url: string) => {
-    setFormData(prev => ({
+    setFormData((prev: PropertyFormData) => ({
       ...prev,
       images: prev.images.filter(img => img.url !== url)
     }));
   };
 
-  const setFeaturedImage = (url: string) => {
-    setFormData(prev => ({
+  const setFeaturedImage = (index: number) => {
+    setFormData((prev: PropertyFormData) => ({
       ...prev,
-      images: prev.images.map(img => ({
+      images: prev.images.map((img, i) => ({
         ...img,
-        isFeatured: img.url === url
+        isFeatured: i === index
       }))
     }));
   };
@@ -276,7 +331,7 @@ export default function PropertyForm({ initialData }: PropertyFormProps) {
 
             <div>
               <label htmlFor="location.state" className="block text-sm font-medium text-gray-700">
-                State
+                County
               </label>
               <div className="mt-1">
                 <input
@@ -464,7 +519,7 @@ export default function PropertyForm({ initialData }: PropertyFormProps) {
                     <div className="absolute top-2 right-2 space-x-2">
                       <button
                         type="button"
-                        onClick={() => setFeaturedImage(image.url)}
+                        onClick={() => setFeaturedImage(index)}
                         className={`p-2 rounded-full ${
                           image.isFeatured ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600'
                         } shadow-sm hover:shadow-md transition-shadow duration-200`}

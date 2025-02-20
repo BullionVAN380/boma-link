@@ -1,71 +1,122 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
-import { Property } from '@/models/property';
+import { connectToDatabase } from '@/lib/mongodb';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { ObjectId } from 'mongodb';
 
 // Helper function to convert MongoDB documents to plain objects
-const serializeDocument = (doc: any) => {
-  const plainObject = JSON.parse(JSON.stringify(doc));
-  if (Array.isArray(plainObject)) {
-    return plainObject.map(item => {
-      if (item._id) {
-        item._id = item._id.toString();
-      }
-      return item;
-    });
+function serializeDocument(doc: any) {
+  const serialized = { ...doc };
+  
+  // Convert ObjectId to string
+  if (serialized._id) {
+    serialized._id = serialized._id.toString();
   }
-  if (plainObject._id) {
-    plainObject._id = plainObject._id.toString();
+  
+  // Convert dates to ISO strings
+  if (serialized.createdAt) {
+    serialized.createdAt = serialized.createdAt.toISOString();
   }
-  return plainObject;
-};
+  if (serialized.updatedAt) {
+    serialized.updatedAt = serialized.updatedAt.toISOString();
+  }
+  
+  return serialized;
+}
 
 export async function GET(request: Request) {
   try {
-    await connectDB();
-    
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const userId = searchParams.get('userId');
+    const status = searchParams.get('status');
     const type = searchParams.get('type');
-    const priceMin = searchParams.get('priceMin');
-    const priceMax = searchParams.get('priceMax');
-    const location = searchParams.get('location');
     const propertyType = searchParams.get('propertyType');
+    const minPrice = searchParams.get('minPrice');
+    const maxPrice = searchParams.get('maxPrice');
+    const isAdmin = searchParams.get('isAdmin') === 'true';
 
-    let query: any = { status: 'approved' };
+    const { db } = await connectToDatabase();
 
-    if (type && type !== 'all') {
-      query.type = type;
+    const query: any = {};
+
+    if (id) query._id = new ObjectId(id);
+    if (userId) query.userId = userId;
+    
+    // Only show approved properties unless:
+    // 1. We're on the admin dashboard (isAdmin=true)
+    // 2. A specific status is requested
+    // 3. User is requesting their own properties
+    if (!isAdmin && !status && !userId) {
+      query.status = 'approved';
+    } else if (status) {
+      query.status = status;
     }
 
-    if (priceMin) {
-      query.price = { ...query.price, $gte: parseInt(priceMin) };
+    if (type) query.type = type;
+    if (propertyType) query.propertyType = propertyType;
+    
+    if (minPrice || maxPrice) {
+      query.price = {};
+      if (minPrice) query.price.$gte = parseInt(minPrice);
+      if (maxPrice) query.price.$lte = parseInt(maxPrice);
     }
 
-    if (priceMax) {
-      query.price = { ...query.price, $lte: parseInt(priceMax) };
-    }
-
-    if (location) {
-      query['location.city'] = new RegExp(location, 'i');
-    }
-
-    if (propertyType && propertyType !== 'all') {
-      query.propertyType = propertyType;
-    }
-
-    const properties = await Property.find(query)
+    // Fetch properties
+    const properties = await db
+      .collection('properties')
+      .find(query)
       .sort({ createdAt: -1 })
-      .lean()
-      .exec();
+      .toArray();
 
-    // Serialize the properties before sending to client
-    const serializedProperties = serializeDocument(properties);
+    // Fetch owners for all properties
+    const userIds = properties
+      .map(p => p.userId)
+      .filter(id => id != null)
+      .map(id => typeof id === 'string' ? id : id.toString());
+
+    const users = userIds.length > 0 ? await db
+      .collection('users')
+      .find({ 
+        $or: [
+          { _id: { $in: userIds.map(id => new ObjectId(id)) } },
+          { id: { $in: userIds } }
+        ]
+      })
+      .toArray() : [];
+
+    // Create a map of userId to user data
+    const userMap = users.reduce((map: any, user) => {
+      const userId = user._id ? user._id.toString() : user.id;
+      if (userId) {
+        map[userId] = {
+          name: user.name || 'Anonymous User',
+          email: user.email || 'No email provided'
+        };
+      }
+      return map;
+    }, {});
+
+    // Add owner data to each property
+    const propertiesWithOwners = properties.map(property => {
+      const userId = property.userId?.toString();
+      return {
+        ...property,
+        owner: userId && userMap[userId] ? userMap[userId] : {
+          name: 'Anonymous User',
+          email: 'No email provided'
+        }
+      };
+    });
+
+    // Serialize each property before sending to client
+    const serializedProperties = propertiesWithOwners.map(serializeDocument);
+    
     return NextResponse.json(serializedProperties);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching properties:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: error.message || 'Failed to fetch properties' },
       { status: 500 }
     );
   }
@@ -73,7 +124,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await connectDB();
+    const { db } = await connectToDatabase();
 
     const session = await getServerSession(authOptions);
     
@@ -98,14 +149,35 @@ export async function POST(request: Request) {
 
     const propertyData = {
       ...data,
-      owner: session.user.id,
-      status: session.user.role === 'admin' ? 'approved' : 'pending'
+      userId: session.user.id,
+      status: 'pending',
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
 
-    const property = await Property.create(propertyData);
+    const result = await db.collection('properties').insertOne(propertyData);
     
+    // Get the inserted document
+    const insertedProperty = await db.collection('properties').findOne({ _id: result.insertedId });
+    
+    if (!insertedProperty) {
+      throw new Error('Failed to retrieve created property');
+    }
+
+    // Get the owner data
+    const owner = await db.collection('users').findOne({ _id: session.user.id });
+    
+    // Add owner data to the property
+    const propertyWithOwner = {
+      ...insertedProperty,
+      owner: owner ? {
+        name: owner.name,
+        email: owner.email
+      } : null
+    };
+
     // Serialize the property before sending to client
-    const serializedProperty = serializeDocument(property.toObject());
+    const serializedProperty = serializeDocument(propertyWithOwner);
     return NextResponse.json(serializedProperty);
   } catch (error: any) {
     console.error('Error creating property:', error);

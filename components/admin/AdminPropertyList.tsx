@@ -119,8 +119,12 @@ export default function AdminPropertyList() {
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900">{property.owner.name}</div>
-                <div className="text-sm text-gray-500">{property.owner.email}</div>
+                <div className="text-sm text-gray-900">
+                  {property.owner?.name || 'Unknown Owner'}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {property.owner?.email || 'No email provided'}
+                </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full

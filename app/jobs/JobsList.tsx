@@ -8,13 +8,12 @@ import JobCard from '@/components/JobCard';
 import { Job } from '@/types/job';
 
 interface JobsListProps {
-  initialJobs: Job[];
+  jobs: Job[];
 }
 
-export default function JobsList({ initialJobs }: JobsListProps) {
+export default function JobsList({ jobs = [] }: JobsListProps) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === 'admin';
-  const [jobs] = useState(initialJobs);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
