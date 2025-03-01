@@ -44,10 +44,19 @@ export default function PropertyList() {
         if (filters.propertyType !== 'all') params.append('propertyType', filters.propertyType);
 
         const response = await fetch(`/api/properties?${params.toString()}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const data = await response.json();
+        if (!Array.isArray(data)) {
+          console.error('Received non-array data:', data);
+          setProperties([]);
+          return;
+        }
         setProperties(data);
       } catch (error) {
         console.error('Error fetching properties:', error);
+        setProperties([]);
       } finally {
         setLoading(false);
       }
