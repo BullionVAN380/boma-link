@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/mongodb';
+import clientPromise from '@/lib/mongodb';
+import { ObjectId } from 'mongodb';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { ObjectId } from 'mongodb';
 
 // Helper function to convert MongoDB documents to plain objects
 function serializeDocument(doc: any) {
@@ -36,7 +36,8 @@ export async function GET(request: Request) {
     const maxPrice = searchParams.get('maxPrice');
     const isAdmin = searchParams.get('isAdmin') === 'true';
 
-    const { db } = await connectToDatabase();
+    const client = await clientPromise;
+    const db = client.db();
 
     const query: any = {};
 
@@ -69,12 +70,13 @@ export async function GET(request: Request) {
       .sort({ createdAt: -1 })
       .toArray();
 
-    // Fetch owners for all properties
+    // Get unique user IDs from properties
     const userIds = properties
       .map(p => p.userId)
       .filter(id => id != null)
       .map(id => typeof id === 'string' ? id : id.toString());
 
+    // Fetch all users who own properties
     const users = userIds.length > 0 ? await db
       .collection('users')
       .find({ 
@@ -99,24 +101,21 @@ export async function GET(request: Request) {
 
     // Add owner data to each property
     const propertiesWithOwners = properties.map(property => {
-      const userId = property.userId?.toString();
+      const userId = property.userId ? 
+        (typeof property.userId === 'string' ? property.userId : property.userId.toString()) 
+        : null;
+      
       return {
-        ...property,
-        owner: userId && userMap[userId] ? userMap[userId] : {
-          name: 'Anonymous User',
-          email: 'No email provided'
-        }
+        ...serializeDocument(property),
+        owner: userId ? userMap[userId] || { name: 'Unknown Owner', email: 'No email provided' } : { name: 'Unknown Owner', email: 'No email provided' }
       };
     });
 
-    // Serialize each property before sending to client
-    const serializedProperties = propertiesWithOwners.map(serializeDocument);
-    
-    return NextResponse.json(serializedProperties);
-  } catch (error: any) {
+    return NextResponse.json(propertiesWithOwners);
+  } catch (error) {
     console.error('Error fetching properties:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch properties' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     );
   }
@@ -124,8 +123,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { db } = await connectToDatabase();
-
     const session = await getServerSession(authOptions);
     
     if (!session?.user) {
@@ -136,18 +133,11 @@ export async function POST(request: Request) {
     }
 
     const data = await request.json();
-    
-    const requiredFields = ['title', 'description', 'type', 'propertyType', 'price'];
-    for (const field of requiredFields) {
-      if (!data[field]) {
-        return NextResponse.json(
-          { error: `${field} is required` },
-          { status: 400 }
-        );
-      }
-    }
+    const client = await clientPromise;
+    const db = client.db();
 
-    const propertyData = {
+    // Add user ID and timestamps to the property
+    const property = {
       ...data,
       userId: session.user.id,
       status: 'pending',
@@ -155,34 +145,16 @@ export async function POST(request: Request) {
       updatedAt: new Date()
     };
 
-    const result = await db.collection('properties').insertOne(propertyData);
-    
-    // Get the inserted document
-    const insertedProperty = await db.collection('properties').findOne({ _id: result.insertedId });
-    
-    if (!insertedProperty) {
-      throw new Error('Failed to retrieve created property');
-    }
+    const result = await db.collection('properties').insertOne(property);
 
-    // Get the owner data
-    const owner = await db.collection('users').findOne({ _id: session.user.id });
-    
-    // Add owner data to the property
-    const propertyWithOwner = {
-      ...insertedProperty,
-      owner: owner ? {
-        name: owner.name,
-        email: owner.email
-      } : null
-    };
-
-    // Serialize the property before sending to client
-    const serializedProperty = serializeDocument(propertyWithOwner);
-    return NextResponse.json(serializedProperty);
-  } catch (error: any) {
+    return NextResponse.json({
+      ...property,
+      _id: result.insertedId
+    });
+  } catch (error) {
     console.error('Error creating property:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to create property' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     );
   }

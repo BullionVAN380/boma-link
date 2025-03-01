@@ -3,8 +3,30 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectToDatabase } from '@/lib/db';
 import { getApplicationModel } from '@/models/application';
+import { writeFile } from 'fs/promises';
+import path from 'path';
 
 export const runtime = 'nodejs'; // Set runtime to nodejs
+
+async function saveFile(file: Blob, userId: string, type: 'resume' | 'coverLetter'): Promise<string> {
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+
+  // Create a unique filename
+  const originalName = file.name || `${type}.pdf`;
+  const extension = path.extname(originalName);
+  const filename = `${userId}-${type}-${Date.now()}${extension}`;
+  
+  // Save to public/uploads directory
+  const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+  const filePath = path.join(uploadDir, filename);
+  
+  // Ensure the uploads directory exists
+  await writeFile(filePath, buffer);
+  
+  // Return the public URL
+  return `/uploads/${filename}`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,6 +54,13 @@ export async function POST(req: NextRequest) {
     // Connect to database
     await connectToDatabase();
 
+    // Save files and get their URLs
+    const resumeUrl = await saveFile(resume, session.user.id, 'resume');
+    let coverLetterUrl: string | undefined;
+    if (coverLetter) {
+      coverLetterUrl = await saveFile(coverLetter, session.user.id, 'coverLetter');
+    }
+
     const Application = await getApplicationModel();
 
     const application = new Application({
@@ -40,14 +69,14 @@ export async function POST(req: NextRequest) {
       status: 'pending',
       resume: {
         name: resume.name || 'resume',
-        // TODO: Implement file upload to cloud storage
-        url: '',
+        url: resumeUrl,
       },
-      coverLetter: coverLetter ? {
-        name: coverLetter.name || 'cover-letter',
-        // TODO: Implement file upload to cloud storage
-        url: '',
-      } : null
+      ...(coverLetter && coverLetterUrl ? {
+        coverLetter: {
+          name: coverLetter.name || 'cover-letter',
+          url: coverLetterUrl,
+        }
+      } : {})
     });
 
     await application.save();

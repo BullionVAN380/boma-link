@@ -52,13 +52,15 @@ export default function AdminPropertyList() {
     }
   };
 
-  const handleStatusUpdate = async (propertyId: string, status: 'approved' | 'rejected') => {
+  const handleStatusUpdate = async (propertyId: string, status: 'approved' | 'rejected' | 'pending') => {
     try {
-      await axios.patch(`/api/admin/properties/${propertyId}`, { status });
+      await axios.patch(`/api/admin/properties`, { propertyId, status });
       // Update the local state
-      setProperties(properties.map(property => 
-        property._id === propertyId ? { ...property, status } : property
-      ));
+      setProperties(prevProperties =>
+        prevProperties.map(property => 
+          property._id === propertyId ? { ...property, status } : property
+        )
+      );
       router.refresh(); // Refresh the page to update server components
     } catch (err) {
       setError('Failed to update property status');
@@ -119,11 +121,22 @@ export default function AdminPropertyList() {
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900">
-                  {property.owner?.name || 'Unknown Owner'}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {property.owner?.email || 'No email provided'}
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
+                      <span className="text-gray-500 text-lg">
+                        {property.owner?.name ? property.owner.name[0].toUpperCase() : 'U'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <div className="text-sm font-medium text-gray-900">
+                      {property.owner?.name || 'Unknown Owner'}
+                    </div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {property.owner?.email || 'No email provided'}
+                    </div>
+                  </div>
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
