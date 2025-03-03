@@ -1,12 +1,61 @@
-import { NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
-import { ObjectId } from 'mongodb';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+export const runtime = 'nodejs';
 
-// Helper function to convert MongoDB documents to plain objects
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth/options';
+import { getPropertyModel } from '@/lib/server/models/property';
+import { getUserModel } from '@/lib/server/models/user';
+import { withErrorHandler, jsonResponse } from '@/lib/api-wrapper';
+import { ApiError, throwIfUnauthorized, throwIfBadRequest } from '@/lib/api-error';
+import { z } from 'zod';
+
+// Validation schemas
+const propertySearchSchema = z.object({
+  id: z.string().optional(),
+  userId: z.string().optional(),
+  status: z.enum(['pending', 'approved', 'rejected', 'sold', 'rented']).optional(),
+  type: z.string().optional(),
+  propertyType: z.string().optional(),
+  priceMin: z.string().regex(/^\d+$/).optional(),
+  priceMax: z.string().regex(/^\d+$/).optional(),
+  location: z.string().optional(),
+  isAdmin: z.string().transform(val => val === 'true').optional(),
+  limit: z.string().regex(/^\d+$/).optional()
+});
+
+const propertyCreateSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().min(1, 'Description is required'),
+  type: z.enum(['rent', 'sale']),
+  propertyType: z.enum(['apartment', 'house', 'condo', 'townhouse', 'land']),
+  price: z.number().positive('Price must be positive'),
+  location: z.object({
+    address: z.string().min(1, 'Address is required'),
+    city: z.string().min(1, 'City is required'),
+    state: z.string().min(1, 'State is required'),
+    country: z.string().optional(),
+    zipCode: z.string().optional()
+  }),
+  features: z.object({
+    bedrooms: z.number(),
+    bathrooms: z.number(),
+    area: z.number(),
+    parking: z.boolean().optional(),
+    furnished: z.boolean().optional(),
+    airConditioning: z.boolean().optional(),
+    heating: z.boolean().optional()
+  }),
+  images: z.array(z.object({
+    url: z.string(),
+    publicId: z.string().optional(),
+    isFeatured: z.boolean().optional()
+  })).min(1, 'At least one image is required'),
+  status: z.enum(['pending', 'approved', 'rejected', 'sold', 'rented']).optional()
+});
+
+// Helper function to convert Mongoose documents to plain objects
 function serializeDocument(doc: any) {
-  const serialized = { ...doc };
+  const serialized = doc.toObject ? doc.toObject() : { ...doc };
   
   // Convert ObjectId to string
   if (serialized._id) {
@@ -27,91 +76,41 @@ function serializeDocument(doc: any) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    const userId = searchParams.get('userId');
-    const status = searchParams.get('status');
-    const type = searchParams.get('type');
-    const propertyType = searchParams.get('propertyType');
-    const minPrice = searchParams.get('minPrice');
-    const maxPrice = searchParams.get('maxPrice');
-    const isAdmin = searchParams.get('isAdmin') === 'true';
+    const featured = searchParams.get('featured') === 'true';
+    const session = await getServerSession(authOptions);
 
-    const client = await clientPromise;
-    const db = client.db();
+    const Property = await getPropertyModel();
+    let query: any = {};
 
-    const query: any = {};
-
-    if (id) query._id = new ObjectId(id);
-    if (userId) query.userId = userId;
-    
-    // Only show approved properties unless:
-    // 1. We're on the admin dashboard (isAdmin=true)
-    // 2. A specific status is requested
-    // 3. User is requesting their own properties
-    if (!isAdmin && !status && !userId) {
-      query.status = 'approved';
-    } else if (status) {
-      query.status = status;
-    }
-
-    if (type) query.type = type;
-    if (propertyType) query.propertyType = propertyType;
-    
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) query.price.$gte = parseInt(minPrice);
-      if (maxPrice) query.price.$lte = parseInt(maxPrice);
-    }
-
-    // Fetch properties
-    const properties = await db
-      .collection('properties')
-      .find(query)
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    // Get unique user IDs from properties
-    const userIds = properties
-      .map(p => p.userId)
-      .filter(id => id != null)
-      .map(id => typeof id === 'string' ? id : id.toString());
-
-    // Fetch all users who own properties
-    const users = userIds.length > 0 ? await db
-      .collection('users')
-      .find({ 
-        $or: [
-          { _id: { $in: userIds.map(id => new ObjectId(id)) } },
-          { id: { $in: userIds } }
-        ]
-      })
-      .toArray() : [];
-
-    // Create a map of userId to user data
-    const userMap = users.reduce((map: any, user) => {
-      const userId = user._id ? user._id.toString() : user.id;
-      if (userId) {
-        map[userId] = {
-          name: user.name || 'Anonymous User',
-          email: user.email || 'No email provided'
-        };
-      }
-      return map;
-    }, {});
-
-    // Add owner data to each property
-    const propertiesWithOwners = properties.map(property => {
-      const userId = property.userId ? 
-        (typeof property.userId === 'string' ? property.userId : property.userId.toString()) 
-        : null;
-      
-      return {
-        ...serializeDocument(property),
-        owner: userId ? userMap[userId] || { name: 'Unknown Owner', email: 'No email provided' } : { name: 'Unknown Owner', email: 'No email provided' }
+    // For featured properties on homepage, only show approved properties
+    if (featured) {
+      query = {
+        status: 'approved',
+        isFeatured: true
       };
-    });
+      console.log('Featured Query:', query);
+    } 
+    // For regular property listing, show approved properties and user's own properties
+    else {
+      if (session?.user) {
+        query = {
+          $or: [
+            { status: 'approved' },
+            { owner: session.user.id }
+          ]
+        };
+      } else {
+        query = { status: 'approved' };
+      }
+    }
 
-    return NextResponse.json(propertiesWithOwners);
+    console.log('Final Query:', query);
+    const properties = await Property.find(query)
+      .sort({ createdAt: -1 });
+
+    console.log('Found Properties:', properties.length);
+    
+    return NextResponse.json(properties);
   } catch (error) {
     console.error('Error fetching properties:', error);
     return NextResponse.json(
@@ -119,43 +118,27 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
-}
+};
 
-export async function POST(request: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+export const POST = withErrorHandler(async (request: Request) => {
+  const session = await getServerSession(authOptions);
+  throwIfUnauthorized(!!session?.user, 'You must be logged in to create a property listing');
 
-    const data = await request.json();
-    const client = await clientPromise;
-    const db = client.db();
+  const data = await request.json();
+  
+  // Validate request body
+  const validatedData = propertyCreateSchema.parse(data);
+  
+  const PropertyModel = await getPropertyModel();
 
-    // Add user ID and timestamps to the property
-    const property = {
-      ...data,
-      userId: session.user.id,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+  // Add user ID and status to the property
+  const property = new PropertyModel({
+    ...validatedData,
+    userId: session.user.id,
+    status: 'pending'
+  });
 
-    const result = await db.collection('properties').insertOne(property);
+  await property.save();
 
-    return NextResponse.json({
-      ...property,
-      _id: result.insertedId
-    });
-  } catch (error) {
-    console.error('Error creating property:', error);
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
-    );
-  }
-}
+  return jsonResponse(serializeDocument(property), 201);
+});

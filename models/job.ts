@@ -1,99 +1,86 @@
-import mongoose, { Model } from 'mongoose';
+export const runtime = 'nodejs';
 
-const jobSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true,
-  },
-  company: {
-    type: String,
-    required: true,
-  },
-  location: {
-    city: String,
-    state: String,
-    country: String,
+import mongoose, { Model } from 'mongoose';
+import { connectToDatabase } from '@/lib/db';
+
+// Only create the model on the server side
+const createModel = () => {
+  const jobSchema = new mongoose.Schema({
+    title: {
+      type: String,
+      required: true
+    },
+    company: {
+      type: String,
+      required: true
+    },
+    location: {
+      type: String,
+      required: true
+    },
     type: {
       type: String,
-      enum: ['remote', 'onsite', 'hybrid'],
+      enum: ['full-time', 'part-time', 'contract', 'internship'],
       required: true
+    },
+    description: {
+      type: String,
+      required: true
+    },
+    requirements: [String],
+    salary: {
+      min: Number,
+      max: Number,
+      currency: {
+        type: String,
+        default: 'USD'
+      }
+    },
+    benefits: [String],
+    status: {
+      type: String,
+      enum: ['active', 'closed', 'draft'],
+      default: 'active'
+    },
+    userId: {
+      type: String,
+      required: true
+    },
+    applicationDeadline: Date,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
     }
-  },
-  description: {
-    type: String,
-    required: true,
-  },
-  requirements: {
-    type: [String],
-    required: true,
-  },
-  salary: {
-    min: Number,
-    max: Number,
-    currency: String
-  },
-  employmentType: {
-    type: String,
-    enum: ['full-time', 'part-time', 'contract', 'internship'],
-    required: true
-  },
-  experienceLevel: {
-    type: String,
-    enum: ['entry', 'mid', 'senior', 'executive'],
-    required: true
-  },
-  employer: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  status: {
-    type: String,
-    enum: ['active', 'closed', 'draft'],
-    default: 'active'
-  },
-  applications: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Application'
-  }],
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-}, {
-  timestamps: true
-});
+  });
+
+  return mongoose.models.Job || mongoose.model('Job', jobSchema);
+};
 
 interface IJob {
   title: string;
   company: string;
-  location: {
-    city: string;
-    state: string;
-    country: string;
-    type: 'remote' | 'onsite' | 'hybrid';
-  };
+  location: string;
+  type: 'full-time' | 'part-time' | 'contract' | 'internship';
   description: string;
   requirements: string[];
-  salary: {
-    min: number;
-    max: number;
+  salary?: {
+    min?: number;
+    max?: number;
     currency: string;
   };
-  employmentType: 'full-time' | 'part-time' | 'contract' | 'internship';
-  experienceLevel: 'entry' | 'mid' | 'senior' | 'executive';
-  employer: mongoose.Types.ObjectId;
+  benefits?: string[];
   status: 'active' | 'closed' | 'draft';
-  applications: mongoose.Types.ObjectId[];
+  userId: string;
+  applicationDeadline?: Date;
   createdAt: Date;
+  updatedAt: Date;
 }
 
-// This is important for type inference
-type JobModel = Model<IJob>;
-
-// Function to get the Job model
-export async function getJobModel(): Promise<JobModel> {
-  return mongoose.models.Job || mongoose.model<IJob>('Job', jobSchema);
+export async function getJobModel(): Promise<Model<IJob>> {
+  await connectToDatabase();
+  return createModel() as Model<IJob>;
 }
-
-export type { IJob };

@@ -1,31 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { connectToDatabase } from '@/lib/db';
-import { getApplicationModel } from '@/models/application';
-import { writeFile } from 'fs/promises';
-import path from 'path';
+import { getApplicationModel } from '@/lib/server/models/application';
 
-export const runtime = 'nodejs'; // Set runtime to nodejs
+export const runtime = 'nodejs';
 
-async function saveFile(file: Blob, userId: string, type: 'resume' | 'coverLetter'): Promise<string> {
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
-
-  // Create a unique filename
-  const originalName = file.name || `${type}.pdf`;
-  const extension = path.extname(originalName);
-  const filename = `${userId}-${type}-${Date.now()}${extension}`;
+async function fileFromFormData(formData: FormData, fieldName: string) {
+  const file = formData.get(fieldName);
+  if (!file || typeof file === 'string') return null;
   
-  // Save to public/uploads directory
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-  const filePath = path.join(uploadDir, filename);
-  
-  // Ensure the uploads directory exists
-  await writeFile(filePath, buffer);
-  
-  // Return the public URL
-  return `/uploads/${filename}`;
+  const arrayBuffer = await file.arrayBuffer();
+  return {
+    data: Buffer.from(arrayBuffer),
+    contentType: file.type,
+    filename: file.name
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -34,15 +23,17 @@ export async function POST(req: NextRequest) {
     
     if (!session?.user) {
       return NextResponse.json(
-        { error: 'You must be signed in to apply for jobs' },
+        { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
     const formData = await req.formData();
     const jobId = formData.get('jobId');
-    const resume = formData.get('resume') as Blob | null;
-    const coverLetter = formData.get('coverLetter') as Blob | null;
+    
+    // Get files
+    const resume = await fileFromFormData(formData, 'resume');
+    const coverLetter = await fileFromFormData(formData, 'coverLetter');
 
     if (!jobId || !resume) {
       return NextResponse.json(
@@ -51,44 +42,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Connect to database
-    await connectToDatabase();
+    const Application = await getApplicationModel();
+    
+    const application = await Application.create({
+      jobId,
+      userId: session.user.id,
+      resume,
+      ...(coverLetter && { coverLetter }),
+      status: 'pending'
+    });
 
-    // Save files and get their URLs
-    const resumeUrl = await saveFile(resume, session.user.id, 'resume');
-    let coverLetterUrl: string | undefined;
-    if (coverLetter) {
-      coverLetterUrl = await saveFile(coverLetter, session.user.id, 'coverLetter');
+    return NextResponse.json(application);
+  } catch (error) {
+    console.error('Error creating application:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     const Application = await getApplicationModel();
+    const applications = await Application.find({ userId: session.user.id })
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const application = new Application({
-      jobId,
-      userId: session.user.id,
-      status: 'pending',
-      resume: {
-        name: resume.name || 'resume',
-        url: resumeUrl,
-      },
-      ...(coverLetter && coverLetterUrl ? {
-        coverLetter: {
-          name: coverLetter.name || 'cover-letter',
-          url: coverLetterUrl,
-        }
-      } : {})
-    });
-
-    await application.save();
-
-    return NextResponse.json(
-      { message: 'Application submitted successfully' },
-      { status: 201 }
-    );
+    return NextResponse.json(applications);
   } catch (error) {
-    console.error('Error submitting application:', error);
+    console.error('Error fetching applications:', error);
     return NextResponse.json(
-      { error: 'Failed to submit application' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     );
   }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { FaStar } from 'react-icons/fa';
 
 interface Property {
   _id: string;
@@ -24,6 +25,7 @@ interface Property {
     area: number;
   };
   status: 'pending' | 'approved' | 'rejected';
+  isFeatured: boolean;
   owner: {
     name: string;
     email: string;
@@ -67,6 +69,21 @@ export default function AdminPropertyList() {
     }
   };
 
+  const handleFeaturedToggle = async (propertyId: string, isFeatured: boolean) => {
+    try {
+      await axios.patch(`/api/admin/properties`, { propertyId, isFeatured });
+      // Update the local state
+      setProperties(prevProperties =>
+        prevProperties.map(property => 
+          property._id === propertyId ? { ...property, isFeatured } : property
+        )
+      );
+      router.refresh();
+    } catch (err) {
+      setError('Failed to update featured status');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
@@ -96,6 +113,9 @@ export default function AdminPropertyList() {
             </th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Status
+            </th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Featured
             </th>
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Actions
@@ -146,6 +166,19 @@ export default function AdminPropertyList() {
                     'bg-yellow-100 text-yellow-800'}`}>
                   {property.status}
                 </span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <button
+                  onClick={() => handleFeaturedToggle(property._id, !property.isFeatured)}
+                  className={`p-2 rounded-full transition-colors ${
+                    property.isFeatured 
+                      ? 'text-yellow-500 hover:text-yellow-600' 
+                      : 'text-gray-400 hover:text-gray-500'
+                  }`}
+                  title={property.isFeatured ? 'Remove from featured' : 'Mark as featured'}
+                >
+                  <FaStar className="w-5 h-5" />
+                </button>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 {property.status === 'pending' && (

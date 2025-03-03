@@ -43,8 +43,8 @@ export default function CreateJob() {
     location: {
       city: '',
       state: '',
-      country: '',
-      type: 'onsite'
+      country: 'USA',
+      type: 'onsite' as const
     },
     requirements: [''],
     salary: {
@@ -52,8 +52,8 @@ export default function CreateJob() {
       max: '',
       currency: 'USD'
     },
-    employmentType: 'full-time',
-    experienceLevel: 'entry'
+    employmentType: 'full-time' as const,
+    experienceLevel: 'entry' as const
   });
 
   const handleRequirementChange = (index: number, value: string) => {
@@ -99,8 +99,8 @@ export default function CreateJob() {
         requirements: cleanRequirements,
         salary: {
           ...formData.salary,
-          min: formData.salary.min ? parseInt(formData.salary.min) : null,
-          max: formData.salary.max ? parseInt(formData.salary.max) : null
+          min: formData.salary.min ? parseInt(formData.salary.min) : 0,
+          max: formData.salary.max ? parseInt(formData.salary.max) : 0
         }
       };
 
@@ -113,7 +113,8 @@ export default function CreateJob() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create job listing');
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create job listing');
       }
 
       const job = await response.json();
@@ -168,7 +169,7 @@ export default function CreateJob() {
           </div>
 
           {/* Location */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">City</label>
               <input
@@ -182,7 +183,6 @@ export default function CreateJob() {
                 })}
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700">State</label>
               <input
@@ -196,33 +196,22 @@ export default function CreateJob() {
                 })}
               />
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Country</label>
-              <input
-                type="text"
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                value={formData.location.country}
-                onChange={(e) => setFormData({
-                  ...formData,
-                  location: { ...formData.location, country: e.target.value }
-                })}
-              />
-            </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700">Location Type</label>
               <select
+                required
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 value={formData.location.type}
                 onChange={(e) => setFormData({
                   ...formData,
-                  location: { ...formData.location, type: e.target.value }
+                  location: {
+                    ...formData.location,
+                    type: e.target.value as 'remote' | 'onsite' | 'hybrid'
+                  }
                 })}
               >
-                <option value="remote">Remote</option>
                 <option value="onsite">On-site</option>
+                <option value="remote">Remote</option>
                 <option value="hybrid">Hybrid</option>
               </select>
             </div>
@@ -240,13 +229,15 @@ export default function CreateJob() {
                   onChange={(e) => handleRequirementChange(index, e.target.value)}
                   placeholder="Enter a requirement"
                 />
-                <button
-                  type="button"
-                  onClick={() => removeRequirement(index)}
-                  className="px-3 py-2 text-sm text-red-600 hover:text-red-800"
-                >
-                  Remove
-                </button>
+                {index > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => removeRequirement(index)}
+                    className="px-2 py-1 text-red-600 hover:text-red-800"
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
             ))}
             <button
@@ -259,7 +250,7 @@ export default function CreateJob() {
           </div>
 
           {/* Salary */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Currency</label>
               <select
@@ -275,11 +266,12 @@ export default function CreateJob() {
                 <option value="GBP">GBP</option>
               </select>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700">Minimum Salary</label>
               <input
                 type="number"
+                required
+                min="0"
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 value={formData.salary.min}
                 onChange={(e) => setFormData({
@@ -288,11 +280,12 @@ export default function CreateJob() {
                 })}
               />
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700">Maximum Salary</label>
               <input
                 type="number"
+                required
+                min="0"
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 value={formData.salary.max}
                 onChange={(e) => setFormData({
@@ -303,14 +296,18 @@ export default function CreateJob() {
             </div>
           </div>
 
-          {/* Job Type and Experience Level */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Employment Type & Experience Level */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Employment Type</label>
               <select
+                required
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 value={formData.employmentType}
-                onChange={(e) => setFormData({ ...formData, employmentType: e.target.value })}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  employmentType: e.target.value as 'full-time' | 'part-time' | 'contract' | 'internship'
+                })}
               >
                 <option value="full-time">Full-time</option>
                 <option value="part-time">Part-time</option>
@@ -318,13 +315,16 @@ export default function CreateJob() {
                 <option value="internship">Internship</option>
               </select>
             </div>
-
             <div>
               <label className="block text-sm font-medium text-gray-700">Experience Level</label>
               <select
+                required
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 value={formData.experienceLevel}
-                onChange={(e) => setFormData({ ...formData, experienceLevel: e.target.value })}
+                onChange={(e) => setFormData({
+                  ...formData,
+                  experienceLevel: e.target.value as 'entry' | 'mid' | 'senior' | 'executive'
+                })}
               >
                 <option value="entry">Entry Level</option>
                 <option value="mid">Mid Level</option>
@@ -334,17 +334,13 @@ export default function CreateJob() {
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={loading}
-              className={`px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                loading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              {loading ? 'Creating...' : 'Create Job Listing'}
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-400"
+          >
+            {loading ? 'Creating...' : 'Create Job Listing'}
+          </button>
         </form>
       </div>
     </div>

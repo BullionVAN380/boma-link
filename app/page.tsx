@@ -107,7 +107,7 @@ export default function Home() {
               Explore our handpicked selection of affordable properties in prime locations.
             </p>
           </div>
-          <PropertyList />
+          <PropertyList featured={true} />
           <div className="text-center mt-12">
             <Link 
               href="/properties"

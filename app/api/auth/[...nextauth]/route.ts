@@ -1,48 +1,45 @@
 import NextAuth from 'next-auth';
+import type { AuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
-import { getUserModel } from '@/models/user';
+import { verifyUserCredentials } from '@/lib/server/auth';
+
+if (!process.env.NEXTAUTH_SECRET) {
+  throw new Error('Please provide process.env.NEXTAUTH_SECRET');
+}
+
+export const runtime = 'nodejs';
 
 export const authOptions: AuthOptions = {
   providers: [
     CredentialsProvider({
-      name: 'Credentials',
+      name: 'credentials',
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Please enter your email and password');
+          throw new Error('Email and password required');
         }
 
-        const User = await getUserModel();
-        
-        const user = await User.findOne({ email: credentials.email });
-        if (!user) {
-          throw new Error('No user found with this email');
+        try {
+          return await verifyUserCredentials(
+            credentials.email,
+            credentials.password
+          );
+        } catch (error) {
+          throw error;
         }
-
-        const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) {
-          throw new Error('Invalid password');
-        }
-
-        return {
-          id: user._id.toString(),
-          email: user.email,
-          name: user.name,
-          role: user.role
-        };
       }
     })
   ],
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
-    strategy: 'jwt'
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   pages: {
-    signIn: '/auth/signin',
-    signOut: '/auth/signout',
+    signIn: '/auth/login',
     error: '/auth/error'
   },
   callbacks: {
@@ -54,16 +51,14 @@ export const authOptions: AuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (token) {
-        session.user.role = token.role;
-        session.user.id = token.id;
+      if (token && session.user) {
+        session.user.role = token.role as string;
+        session.user.id = token.id as string;
       }
       return session;
     }
   }
 };
-
-export const runtime = 'nodejs';
 
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };

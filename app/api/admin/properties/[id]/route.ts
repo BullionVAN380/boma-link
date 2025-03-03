@@ -1,8 +1,9 @@
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/authOptions';
-import { connectToDatabase } from '@/lib/db';
-import { Property } from '@/models/property';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { getPropertyModel } from '@/lib/server/models/property';
 
 export async function PATCH(
   request: Request,
@@ -18,23 +19,14 @@ export async function PATCH(
       );
     }
 
-    await connectToDatabase();
+    const data = await request.json();
+    const Property = await getPropertyModel();
     
-    const { status } = await request.json();
-
-    // Validate status
-    if (!['pending', 'approved', 'rejected'].includes(status)) {
-      return NextResponse.json(
-        { error: 'Invalid status' },
-        { status: 400 }
-      );
-    }
-
     const property = await Property.findByIdAndUpdate(
       params.id,
-      { status },
+      { $set: data },
       { new: true }
-    ).populate('owner', 'name email');
+    );
 
     if (!property) {
       return NextResponse.json(

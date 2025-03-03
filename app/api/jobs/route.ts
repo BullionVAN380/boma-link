@@ -1,134 +1,109 @@
 export const runtime = 'nodejs'; // Set runtime to nodejs
 
 import { NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db';
-import { getJobModel } from '@/models/job';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { serializeDocuments, serializeDocument } from '@/lib/utils';
-
-// GET /api/jobs - Get all jobs or filter by query params
-export async function GET(request: Request) {
-  try {
-    await connectToDatabase();
-    const Job = await getJobModel();
-    const { searchParams } = new URL(request.url);
-    
-    // Build filter object based on query parameters
-    const filters: any = { status: 'active' };
-    if (searchParams.get('location')) {
-      filters['location.city'] = new RegExp(searchParams.get('location') as string, 'i');
-    }
-    if (searchParams.get('employmentType')) {
-      filters.employmentType = searchParams.get('employmentType');
-    }
-    if (searchParams.get('experienceLevel')) {
-      filters.experienceLevel = searchParams.get('experienceLevel');
-    }
-    
-    const jobs = await Job.find(filters)
-      .populate('employer', 'name email')
-      .sort({ createdAt: -1 });
-      
-    return NextResponse.json(serializeDocuments(jobs));
-  } catch (error) {
-    console.error('Error fetching jobs:', error);
-    return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 });
-  }
-}
+import { authOptions } from '@/lib/auth/options';
+import { getJobModel } from '@/lib/server/models/job';
 
 // POST /api/jobs - Create a new job (admin only)
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    // Check if user is admin
     if (session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Only administrators can create job listings' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Only administrators can create job listings' },
+        { status: 403 }
+      );
+    }
+
+    const data = await request.json();
+
+    // Validate required fields
+    const requiredFields = ['title', 'company', 'description', 'location', 'employmentType', 'experienceLevel'];
+    for (const field of requiredFields) {
+      if (!data[field]) {
+        return NextResponse.json(
+          { error: `${field} is required` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate location fields
+    if (!data.location.city || !data.location.state || !data.location.type) {
+      return NextResponse.json(
+        { error: 'Location city, state, and type are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate salary
+    if (!data.salary?.min || !data.salary?.max || data.salary.min < 0 || data.salary.max < 0) {
+      return NextResponse.json(
+        { error: 'Valid salary range is required' },
+        { status: 400 }
+      );
     }
 
     const Job = await getJobModel();
-    const data = await request.json();
     
     const job = await Job.create({
       ...data,
       employer: session.user.id,
       status: 'active'
     });
-    
-    return NextResponse.json(serializeDocument(job), { status: 201 });
+
+    // Populate the employer details
+    await job.populate('employer', 'name email');
+
+    return NextResponse.json(job);
   } catch (error) {
-    console.error('Failed to create job:', error);
-    return NextResponse.json({ error: 'Failed to create job' }, { status: 500 });
+    console.error('Error creating job:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }
 
-// PUT /api/jobs - Update a job (admin only)
-export async function PUT(request: Request) {
+// GET /api/jobs - Get all jobs or filter by query params
+export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    if (session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Only administrators can update job listings' }, { status: 403 });
-    }
-
-    const Job = await getJobModel();
-    const data = await request.json();
-    const { id, ...updateData } = data;
-    
-    const job = await Job.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true }
-    ).populate('employer', 'name email');
-    
-    if (!job) {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-    }
-    
-    return NextResponse.json(serializeDocument(job));
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update job' }, { status: 500 });
-  }
-}
-
-// DELETE /api/jobs - Delete a job (admin only)
-export async function DELETE(request: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    if (session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Only administrators can delete job listings' }, { status: 403 });
-    }
-
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const status = searchParams.get('status') || 'active';
+    const type = searchParams.get('type');
+    const location = searchParams.get('location');
     
-    if (!id) {
-      return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
+    const query: any = { status };
+    
+    if (type && type !== 'all') {
+      query.employmentType = type;
     }
-
+    
+    if (location) {
+      query['location.city'] = new RegExp(location, 'i');
+    }
+    
     const Job = await getJobModel();
-    
-    const job = await Job.findByIdAndDelete(id);
-    
-    if (!job) {
-      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-    }
-    
-    return NextResponse.json({ message: 'Job deleted successfully' });
+    const jobs = await Job.find(query)
+      .populate('employer', 'name email')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return NextResponse.json(jobs);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete job' }, { status: 500 });
+    console.error('Error fetching jobs:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 }

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/authOptions';
-import { connectToDatabase } from '@/lib/db';
-import { getUserModel } from '@/models/user';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { getUserModel } from '@/lib/server/models/user';
+
+export const runtime = 'nodejs';
 
 export async function PATCH(
   request: Request,
@@ -18,31 +19,21 @@ export async function PATCH(
       );
     }
 
-    // Prevent admin from modifying their own role
-    if (params.id === session.user.id) {
+    const data = await request.json();
+    
+    // Don't allow changing role to admin for security
+    if (data.role === 'admin') {
       return NextResponse.json(
-        { error: 'Cannot modify own role' },
+        { error: 'Cannot change role to admin' },
         { status: 400 }
       );
     }
 
-    const { role } = await request.json();
-
-    // Validate role
-    const validRoles = ['buyer', 'seller', 'landlord', 'jobSeeker', 'employer', 'agent', 'admin'];
-    if (!validRoles.includes(role)) {
-      return NextResponse.json(
-        { error: 'Invalid role' },
-        { status: 400 }
-      );
-    }
-
-    await connectToDatabase();
     const User = await getUserModel();
     
     const user = await User.findByIdAndUpdate(
       params.id,
-      { role },
+      { $set: data },
       { new: true }
     ).select('-password');
 

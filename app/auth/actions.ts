@@ -1,10 +1,11 @@
 'use server';
 
 import { connectToDatabase } from '@/lib/db';
-import { getUserModel } from '@/models/user';
+import { getUserModel } from '@/lib/server/models/user';
 import { cookies } from 'next/headers';
 import { SignJWT, jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
@@ -117,4 +118,48 @@ export async function getCurrentUser() {
   } catch (error) {
     return null;
   }
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+  const User = await getUserModel();
+  
+  const user = await User.findOne({
+    resetToken: token,
+    resetTokenExpiry: { $gt: Date.now() }
+  });
+
+  if (!user) {
+    throw new Error('Invalid or expired reset token');
+  }
+
+  // Hash new password
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  // Update user
+  user.password = hashedPassword;
+  user.resetToken = undefined;
+  user.resetTokenExpiry = undefined;
+  await user.save();
+
+  return { message: 'Password reset successful' };
+}
+
+export async function forgotPassword(email: string) {
+  const User = await getUserModel();
+  const user = await User.findOne({ email: email.toLowerCase() });
+
+  if (!user) {
+    throw new Error('No user found with this email');
+  }
+
+  // Generate reset token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const resetTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+  // Save reset token to user
+  user.resetToken = resetToken;
+  user.resetTokenExpiry = resetTokenExpiry;
+  await user.save();
+
+  return { message: 'Password reset email sent' };
 }

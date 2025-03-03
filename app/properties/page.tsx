@@ -1,6 +1,5 @@
 import { Metadata } from 'next';
-import { Property } from '@/models/property';
-import { connectToDatabase } from '@/lib/db';
+import { getPropertyModel } from '@/lib/server/models/property';
 import PropertyCard from '@/components/PropertyCard';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,22 +10,61 @@ export const metadata: Metadata = {
   description: 'Browse available properties for sale and rent',
 };
 
-async function getProperties() {
-  await connectToDatabase();
+export const runtime = 'nodejs';
+
+interface Property {
+  _id: string;
+  title: string;
+  description: string;
+  price: number;
+  type: 'rent' | 'sale';
+  propertyType: string;
+  location: {
+    address: string;
+    city: string;
+    state: string;
+  };
+  features: {
+    bedrooms: number;
+    bathrooms: number;
+    area: number;
+  };
+  images?: Array<{
+    url: string;
+    publicId: string;
+    isFeatured?: boolean;
+  }>;
+}
+
+async function getProperties(): Promise<Property[]> {
+  const Property = await getPropertyModel();
   const properties = await Property.find({ status: 'approved' })
     .sort({ createdAt: -1 })
     .limit(20)
     .lean();
 
   return properties.map(property => ({
-    ...property,
     _id: property._id.toString(),
-    owner: property.owner ? {
-      ...property.owner,
-      _id: property.owner._id ? property.owner._id.toString() : undefined
-    } : undefined,
-    createdAt: property.createdAt ? property.createdAt.toISOString() : undefined,
-    updatedAt: property.updatedAt ? property.updatedAt.toISOString() : undefined
+    title: property.title,
+    description: property.description,
+    price: property.price,
+    type: property.type,
+    propertyType: property.propertyType,
+    location: {
+      address: property.location.address,
+      city: property.location.city,
+      state: property.location.state || '',
+    },
+    features: {
+      bedrooms: property.features.bedrooms,
+      bathrooms: property.features.bathrooms,
+      area: property.features.area,
+    },
+    images: property.images?.map(img => ({
+      url: img.url,
+      publicId: img.publicId,
+      isFeatured: img.isFeatured || false
+    }))
   }));
 }
 

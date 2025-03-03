@@ -84,7 +84,7 @@ export default function Navbar() {
                       Your Profile
                     </Link>
                     <button
-                      onClick={() => signOut()}
+                      onClick={() => signOut({ callbackUrl: '/' })}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
                       Sign out
@@ -178,7 +178,7 @@ export default function Navbar() {
             </Link>
           </div>
           {session && (
-            <div className="pt-4 pb-3 border-t border-gray-200">
+            <div className="pt-4 pb-3 border-t z-50 border-gray-200">
               <div className="space-y-1">
                 {session.user?.role === 'admin' && (
                   <Link
@@ -195,7 +195,7 @@ export default function Navbar() {
                   Your Profile
                 </Link>
                 <button
-                  onClick={() => signOut()}
+                  onClick={() => signOut({ callbackUrl: '/' })}
                   className="block w-full text-left pl-3 pr-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Sign out

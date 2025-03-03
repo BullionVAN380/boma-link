@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/authOptions';
-import { connectToDatabase } from '@/lib/db';
-import { getUserModel } from '@/models/user';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { getUserModel } from '@/lib/server/models/user';
+
+export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
   try {
@@ -15,13 +16,12 @@ export async function GET(request: Request) {
       );
     }
 
-    await connectToDatabase();
     const User = await getUserModel();
     
     // Get all users except the current admin
-    const users = await User.find({ _id: { $ne: session.user.id } })
-      .select('-password')
-      .sort({ createdAt: -1 });
+    const users = await User.find({
+      _id: { $ne: session.user.id }
+    }).select('-password').lean();
 
     return NextResponse.json(users);
   } catch (error) {

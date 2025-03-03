@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
+import { getUserModel } from '@/lib/server/models/user';
 import bcrypt from 'bcryptjs';
-import { connectToDatabase } from '@/lib/db';
-import { getUserModel } from '@/models/user';
 
-export const runtime = 'nodejs'; // Set runtime to nodejs
+export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
@@ -16,10 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    await connectToDatabase();
     const User = await getUserModel();
-
-    // Find user by reset token and check if it's still valid
     const user = await User.findOne({
       resetToken: token,
       resetTokenExpiry: { $gt: Date.now() }
@@ -35,17 +31,19 @@ export async function POST(request: Request) {
     // Hash new password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Update user's password and clear reset token
+    // Update user
     user.password = hashedPassword;
     user.resetToken = undefined;
     user.resetTokenExpiry = undefined;
     await user.save();
 
-    return NextResponse.json({ message: 'Password reset successfully' });
+    return NextResponse.json({
+      message: 'Password reset successful'
+    });
   } catch (error) {
-    console.error('Failed to reset password:', error);
+    console.error('Error in reset password:', error);
     return NextResponse.json(
-      { error: 'Failed to reset password' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     );
   }

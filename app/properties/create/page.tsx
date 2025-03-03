@@ -1,7 +1,8 @@
+import { Metadata } from 'next';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import PropertyForm from '@/components/PropertyForm';
-import { authOptions } from '@/app/api/auth/authOptions';
+import { authOptions } from '@/lib/auth/options';
 
 export default async function CreateProperty() {
   const session = await getServerSession(authOptions);

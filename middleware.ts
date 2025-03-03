@@ -1,41 +1,78 @@
+import { withAuth } from 'next-auth/middleware';
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { getToken } from 'next-auth/jwt';
-import { authOptions } from '@/app/api/auth/authOptions';
 
-export async function middleware(request: NextRequest) {
-  const token = await getToken({
-    req: request,
-    secret: authOptions.secret
-  });
+// Simple in-memory store for rate limiting
+const rateLimit = new Map();
 
-  // Define protected paths that require authentication
-  const protectedPaths = [
-    '/properties/create',
-    '/jobs/create',
-    '/profile',
-    '/messages',
-    '/admin/dashboard'
-  ];
+// Rate limit configuration
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_REQUESTS = 100; // Maximum requests per window
 
-  // Check if the current path is protected
-  const isProtectedPath = protectedPaths.some(path => 
-    request.nextUrl.pathname.startsWith(path)
-  );
-
-  if (isProtectedPath && !token) {
-    // Create the returnUrl parameter
-    const encodedReturnUrl = encodeURIComponent(request.nextUrl.pathname);
-    const signInUrl = new URL(`/auth/signin?returnUrl=${encodedReturnUrl}`, request.url);
-    
-    return NextResponse.redirect(signInUrl);
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+  
+  // Clean up old entries
+  for (const [key, timestamp] of rateLimit.entries()) {
+    if (timestamp < windowStart) {
+      rateLimit.delete(key);
+    }
   }
 
-  // If user is already logged in and trying to access auth pages, redirect to home
-  const isAuthPage = request.nextUrl.pathname.startsWith('/auth/');
-  if (isAuthPage && token) {
-    return NextResponse.redirect(new URL('/properties/create', request.url));
-  }
+  // Count requests in current window
+  const requestCount = Array.from(rateLimit.entries())
+    .filter(([key, timestamp]) => key.startsWith(ip) && timestamp > windowStart)
+    .length;
 
-  return NextResponse.next();
+  // Add current request
+  rateLimit.set(`${ip}-${now}`, now);
+
+  return requestCount >= MAX_REQUESTS;
 }
+
+export default withAuth(
+  function middleware(req) {
+    const token = req.nextauth.token;
+    const isAdmin = token?.role === 'admin';
+    const isAdminRoute = req.nextUrl.pathname.startsWith('/admin');
+    const isApiRoute = req.nextUrl.pathname.startsWith('/api');
+
+    // Rate limiting for API routes
+    if (isApiRoute) {
+      const ip = req.ip || 'unknown';
+      if (isRateLimited(ip)) {
+        return new NextResponse(
+          JSON.stringify({ error: 'Too many requests' }),
+          { status: 429, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Redirect non-admin users trying to access admin routes
+    if (isAdminRoute && !isAdmin) {
+      return NextResponse.redirect(new URL('/', req.url));
+    }
+
+    return NextResponse.next();
+  },
+  {
+    callbacks: {
+      authorized: ({ token }) => !!token
+    }
+  }
+);
+
+export const config = {
+  matcher: [
+    '/admin/:path*',
+    '/properties/create',
+    '/properties/edit/:path*',
+    '/jobs/create',
+    '/jobs/edit/:path*',
+    '/profile/:path*',
+    '/api/auth/:path*',
+    '/api/jobs/:path*',
+    '/api/users/:path*',
+    '/api/applications/:path*'
+  ]
+};

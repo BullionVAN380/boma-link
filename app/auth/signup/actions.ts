@@ -1,41 +1,37 @@
 'use server';
 
-import { connectToDatabase } from '@/lib/db';
-import { User } from '@/models/user';
+import { getUserModel } from '@/lib/server/models/user';
 import bcrypt from 'bcryptjs';
 
-export async function signUp(formData: FormData) {
-  try {
-    const name = formData.get('name') as string;
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
-
-    if (!name || !email || !password) {
-      return { error: 'All fields are required' };
-    }
-
-    await connectToDatabase();
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return { error: 'Email already registered' };
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Create new user
-    const user = await User.create({
-      name,
-      email,
-      password: hashedPassword,
-      role: 'buyer', // Default role
-    });
-
-    return { success: true, user: { id: user._id, name: user.name, email: user.email } };
-  } catch (error) {
-    console.error('Signup error:', error);
-    return { error: 'Failed to create account' };
+export async function createUser(data: {
+  email: string;
+  password: string;
+  name: string;
+  role?: string;
+}) {
+  const User = await getUserModel();
+  
+  // Check if user exists
+  const existingUser = await User.findOne({ email: data.email.toLowerCase() });
+  if (existingUser) {
+    throw new Error('Email already exists');
   }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(data.password, 10);
+
+  // Create user
+  const user = await User.create({
+    ...data,
+    email: data.email.toLowerCase(),
+    password: hashedPassword,
+    role: data.role || 'buyer'
+  });
+
+  return {
+    id: user._id,
+    email: user.email,
+    name: user.name,
+    role: user.role
+  };
 }

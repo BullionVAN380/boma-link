@@ -85,7 +85,10 @@ export default function JobDetails() {
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="font-semibold text-gray-700">Location</h3>
               <p className="text-gray-600">
-                {job.location.city}, {job.location.state} ({job.location.type})
+                {job.location && job.location.city ? 
+                  `${job.location.city}, ${job.location.state} (${job.location.type})` : 
+                  'Location not specified'
+                }
               </p>
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">

@@ -6,6 +6,7 @@ import AdminUserList from '@/components/admin/AdminUserList';
 import AdminAnalytics from '@/components/admin/AdminAnalytics';
 import AdminContacts from '@/components/admin/AdminContacts';
 import AdminApplications from '@/components/admin/AdminApplications';
+import AdminJobList from '@/components/admin/AdminJobList';
 import { Property } from '@/types';
 import { useSession } from 'next-auth/react';
 import { redirect } from 'next/navigation';
@@ -62,75 +63,52 @@ export default function AdminDashboard() {
     return <div>Loading...</div>;
   }
 
+  const tabs = [
+    { id: 'properties', label: 'Properties' },
+    { id: 'jobs', label: 'Jobs' },
+    { id: 'users', label: 'Users' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'contacts', label: 'Contacts' }
+  ];
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Admin Dashboard</h1>
-      <div className="bg-white rounded-lg shadow">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex">
-            <button
-              onClick={() => setActiveTab('properties')}
-              className={`${
-                activeTab === 'properties'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm`}
-            >
-              Properties
-            </button>
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`${
-                activeTab === 'users'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm`}
-            >
-              Users
-            </button>
-            <button
-              onClick={() => setActiveTab('applications')}
-              className={`${
-                activeTab === 'applications'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm`}
-            >
-              Applications
-            </button>
-            <button
-              onClick={() => setActiveTab('contacts')}
-              className={`${
-                activeTab === 'contacts'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm`}
-            >
-              Contacts
-            </button>
-            <button
-              onClick={() => setActiveTab('analytics')}
-              className={`${
-                activeTab === 'analytics'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm`}
-            >
-              Analytics
-            </button>
-          </nav>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
         </div>
-        <div className="p-6">
-          {activeTab === 'properties' && (
-            <AdminPropertyList
-              properties={properties}
-              onStatusUpdate={handleStatusUpdate}
-            />
-          )}
-          {activeTab === 'users' && <AdminUserList />}
-          {activeTab === 'applications' && <AdminApplications />}
-          {activeTab === 'contacts' && <AdminContacts />}
-          {activeTab === 'analytics' && <AdminAnalytics />}
+
+        <div className="bg-white shadow rounded-lg">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-4 px-4" aria-label="Tabs">
+              {tabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`${
+                    activeTab === tab.id
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="p-6">
+            {activeTab === 'properties' && (
+              <AdminPropertyList
+                properties={properties}
+                onStatusUpdate={handleStatusUpdate}
+              />
+            )}
+            {activeTab === 'jobs' && <AdminJobList />}
+            {activeTab === 'users' && <AdminUserList />}
+            {activeTab === 'analytics' && <AdminAnalytics />}
+            {activeTab === 'contacts' && <AdminContacts />}
+          </div>
         </div>
       </div>
     </div>

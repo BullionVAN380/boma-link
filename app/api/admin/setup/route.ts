@@ -1,47 +1,55 @@
 import { NextResponse } from 'next/server';
+import { getUserModel } from '@/lib/server/models/user';
 import bcrypt from 'bcryptjs';
-import { connectToDatabase } from '@/lib/db';
-import { getUserModel } from '@/models/user';
 
-export async function POST() {
+export const runtime = 'nodejs';
+
+export async function POST(request: Request) {
   try {
-    await connectToDatabase();
-    const User = await getUserModel();
+    const { email, password, name } = await request.json();
 
-    // Check if admin already exists
-    const existingAdmin = await User.findOne({ email: 'admin@example.com' });
-    if (existingAdmin) {
+    if (!email || !password || !name) {
       return NextResponse.json(
-        { message: 'Admin user already exists' },
-        { status: 200 }
+        { error: 'All fields are required' },
+        { status: 400 }
       );
     }
 
+    const User = await getUserModel();
+    
+    // Check if any admin exists
+    const adminExists = await User.findOne({ role: 'admin' });
+    if (adminExists) {
+      return NextResponse.json(
+        { error: 'Admin account already exists' },
+        { status: 400 }
+      );
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     // Create admin user
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    const adminUser = new User({
-      name: 'Admin User',
-      email: 'admin@example.com',
+    const user = await User.create({
+      email: email.toLowerCase(),
       password: hashedPassword,
+      name,
       role: 'admin'
     });
 
-    await adminUser.save();
-
-    return NextResponse.json(
-      { 
-        message: 'Admin user created successfully',
-        credentials: {
-          email: 'admin@example.com',
-          password: 'admin123'
-        }
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({
+      message: 'Admin account created successfully',
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        role: user.role
+      }
+    });
   } catch (error) {
-    console.error('Error creating admin user:', error);
+    console.error('Error in admin setup:', error);
     return NextResponse.json(
-      { error: 'Failed to create admin user' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     );
   }

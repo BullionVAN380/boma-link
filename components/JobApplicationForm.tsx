@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { FiUpload, FiFile } from 'react-icons/fi';
 
 interface JobApplicationFormProps {
@@ -14,6 +14,15 @@ export default function JobApplicationForm({ jobId, jobTitle }: JobApplicationFo
   const [success, setSuccess] = useState('');
   const [resume, setResume] = useState<File | null>(null);
   const [coverLetter, setCoverLetter] = useState<File | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const resetForm = () => {
+    setResume(null);
+    setCoverLetter(null);
+    if (formRef.current) {
+      formRef.current.reset();
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -38,9 +47,7 @@ export default function JobApplicationForm({ jobId, jobTitle }: JobApplicationFo
       }
 
       setSuccess('Application submitted successfully!');
-      e.currentTarget.reset();
-      setResume(null);
-      setCoverLetter(null);
+      resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit application');
     } finally {
@@ -64,7 +71,7 @@ export default function JobApplicationForm({ jobId, jobTitle }: JobApplicationFo
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Resume/CV (PDF)
@@ -79,7 +86,10 @@ export default function JobApplicationForm({ jobId, jobTitle }: JobApplicationFo
                 type="file"
                 className="sr-only"
                 accept=".pdf"
-                onChange={(e) => e.target.files?.[0] && setResume(e.target.files[0])}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setResume(file);
+                }}
                 required
               />
             </label>
@@ -100,7 +110,10 @@ export default function JobApplicationForm({ jobId, jobTitle }: JobApplicationFo
                 type="file"
                 className="sr-only"
                 accept=".pdf,.doc,.docx"
-                onChange={(e) => e.target.files?.[0] && setCoverLetter(e.target.files[0])}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setCoverLetter(file);
+                }}
               />
             </label>
           </div>

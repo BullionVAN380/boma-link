@@ -1,98 +1,122 @@
+export const runtime = 'nodejs';
+
 import mongoose from 'mongoose';
+import { connectToDatabase } from '@/lib/db';
 
-const propertySchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true
-  },
-  description: {
-    type: String,
-    required: true
-  },
-  price: {
-    type: Number,
-    required: true
-  },
-  type: {
-    type: String,
-    enum: ['sale', 'rent'],
-    required: true
-  },
-  propertyType: {
-    type: String,
-    enum: ['apartment', 'house', 'condo', 'townhouse', 'land', 'commercial'],
-    required: true
-  },
-  location: {
-    address: {
+// Only create the model on the server side
+const createModel = () => {
+  const propertySchema = new mongoose.Schema({
+    title: {
       type: String,
       required: true
     },
-    city: {
+    description: {
       type: String,
       required: true
     },
-    state: {
+    type: {
       type: String,
+      enum: ['rent', 'sale'],
       required: true
     },
-    country: {
+    propertyType: {
       type: String,
+      enum: ['apartment', 'house', 'land', 'commercial'],
       required: true
     },
-    zipCode: String
-  },
-  features: {
-    bedrooms: {
+    price: {
       type: Number,
       required: true
     },
-    bathrooms: {
-      type: Number,
-      required: true
+    location: {
+      address: {
+        type: String,
+        required: true
+      },
+      city: {
+        type: String,
+        required: true
+      },
+      state: String,
+      country: {
+        type: String,
+        required: true
+      },
+      coordinates: {
+        lat: Number,
+        lng: Number
+      }
     },
-    area: {
-      type: Number,
-      required: true
+    features: {
+      bedrooms: Number,
+      bathrooms: Number,
+      size: Number, // in square feet/meters
+      amenities: [String]
     },
-    parking: Boolean,
-    furnished: Boolean,
-    airConditioning: Boolean,
-    heating: Boolean
-  },
-  images: [{
-    url: {
+    images: [{
+      url: String,
+      caption: String
+    }],
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected', 'sold', 'rented'],
+      default: 'pending'
+    },
+    userId: {
       type: String,
       required: true
     },
-    isFeatured: {
-      type: Boolean,
-      default: false
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
     }
-  }],
-  owner: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  status: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected'],
-    default: 'pending'
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+  });
 
-propertySchema.pre('save', function(next) {
-  this.updatedAt = new Date();
-  next();
-});
+  propertySchema.pre('save', function(next) {
+    this.updatedAt = new Date();
+    next();
+  });
 
-export const Property = mongoose.models.Property || mongoose.model('Property', propertySchema);
+  return mongoose.models.Property || mongoose.model('Property', propertySchema);
+};
+
+interface IProperty {
+  title: string;
+  description: string;
+  type: 'rent' | 'sale';
+  propertyType: 'apartment' | 'house' | 'land' | 'commercial';
+  price: number;
+  location: {
+    address: string;
+    city: string;
+    state?: string;
+    country: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  };
+  features: {
+    bedrooms?: number;
+    bathrooms?: number;
+    size?: number;
+    amenities?: string[];
+  };
+  images: Array<{
+    url: string;
+    caption?: string;
+  }>;
+  status: 'pending' | 'approved' | 'rejected' | 'sold' | 'rented';
+  userId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export async function getPropertyModel() {
+  await connectToDatabase();
+  return createModel();
+}

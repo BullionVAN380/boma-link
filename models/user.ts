@@ -1,40 +1,50 @@
+// Mark this file as server-only
+import 'server-only';
+
+export const runtime = 'nodejs';
+
 import mongoose, { Model } from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  password: {
-    type: String,
-    required: true
-  },
-  role: {
-    type: String,
-    enum: ['buyer', 'seller', 'landlord', 'jobSeeker', 'employer', 'agent', 'admin'],
-    default: 'buyer',
-    required: true
-  },
-  profile: {
-    phone: String,
-    address: String,
-    bio: String,
-    company: String,
-    website: String
-  },
-  resetToken: String,
-  resetTokenExpiry: Date,
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+// Only create the model on the server side
+const createModel = () => {
+  const userSchema = new mongoose.Schema({
+    name: {
+      type: String,
+      required: true
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true
+    },
+    password: {
+      type: String,
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ['buyer', 'seller', 'landlord', 'jobSeeker', 'employer', 'agent', 'admin'],
+      default: 'buyer',
+      required: true
+    },
+    profile: {
+      phone: String,
+      address: String,
+      bio: String,
+      company: String,
+      website: String
+    },
+    resetToken: String,
+    resetTokenExpiry: Date,
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  });
+
+  return mongoose.models.User || mongoose.model('User', userSchema);
+};
 
 interface IUser {
   name: string;
@@ -53,36 +63,7 @@ interface IUser {
   createdAt: Date;
 }
 
-let cached: { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null } = { conn: null, promise: null };
-
-async function dbConnect() {
-  if (cached.conn) {
-    return cached.conn;
-  }
-
-  if (!cached.promise) {
-    cached.promise = connectToDatabase().then((mongoose) => {
-      return mongoose;
-    });
-  }
-
-  cached.conn = await cached.promise;
-  return cached.conn;
-}
-
-let UserModel: Model<IUser>;
-
-try {
-  // Try to get the existing model
-  UserModel = mongoose.model<IUser>('User');
-} catch {
-  // Model doesn't exist, create it
-  UserModel = mongoose.model<IUser>('User', userSchema);
-}
-
-export { UserModel };
-
-export async function getUserModel() {
-  await dbConnect();
-  return UserModel;
+export async function getUserModel(): Promise<Model<IUser>> {
+  await connectToDatabase();
+  return createModel() as Model<IUser>;
 }
